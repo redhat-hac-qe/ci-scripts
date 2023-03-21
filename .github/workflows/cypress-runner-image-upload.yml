@@ -24,13 +24,18 @@ jobs:
           updates=$?
           if [ $updates -ne 0 ]; then
             echo "No changes"
-            echo "push_image=true" >> $GITHUB_OUTPUT
+            echo "push_image=false" >> $GITHUB_OUTPUT
           else 
             echo "Changes detected"
             echo "push_image=true" >> $GITHUB_OUTPUT
           fi
       - name: Build and push image
         if: steps.changes.outputs.push_image == 'true'
+        env:
+          USERNAME: ${{ secrets.QUAY_USER }}
+          TOKEN: ${{ secrets.QUAY_TOKEN }}
         run: |
           cd hac-dev/integration-tests
           podman build -f Dockerfile -t quay.io/hacdev/hac-tests:next
+          podman login -u="$USERNAME" -p="$TOKEN" quay.io
+          podman push quay.io/hacdev/hac-tests:next
