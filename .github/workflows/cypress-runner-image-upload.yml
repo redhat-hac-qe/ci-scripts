@@ -8,8 +8,6 @@ jobs:
   changes:
     name: Check for changes from last run
     runs-on: ubuntu-latest
-    outputs: 
-      push_image: ${{ steps.set_output.outputs.push_image }}
     steps:
       - name: Checkout hac-dev
         uses: actions/checkout@v3
@@ -17,6 +15,7 @@ jobs:
           repository: openshift/hac-dev
           path: hac-dev
       - name: Check the changes to tests since last run
+        id: changes
         run: |
           set +e
           cd hac-dev
@@ -25,24 +24,13 @@ jobs:
           updates=$?
           if [ $updates -ne 0 ]; then
             echo "No changes"
-            echo "::set-output name=push_image::false"
+            echo "push_image=true" >> $GITHUB_OUTPUT
           else 
             echo "Changes detected"
-            echo "::set-output name=push_image::true"
+            echo "push_image=true" >> $GITHUB_OUTPUT
           fi
-
-  push:
-    name: Build and push image
-    needs: [changes]
-    if: needs.changes.outputs.push_image == 'true'
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout hac-dev
-      uses: actions/checkout@v3
-      with:
-        repository: openshift/hac-dev
-        path: hac-dev
-    - name: Build the test runner image
-      run: |
-        cd hac-dev/integration-tests
-        podman build -f Dockerfile -t quay.io/hacdev/hac-tests:next
+      - name: Build and push image
+        if: ${{ steps.changes.outputs.push_image == "true" }}
+        run: |
+          cd hac-dev/integration-tests
+          podman build -f Dockerfile -t quay.io/hacdev/hac-tests:next
