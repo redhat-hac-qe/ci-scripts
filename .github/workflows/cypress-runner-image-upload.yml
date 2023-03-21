@@ -15,35 +15,33 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: openshift/hac-dev
-	  path: hac-dev
-        
+          path: hac-dev
       - name: Check the changes to tests since last run
-      	run: |
-      	  cd hac-dev
-      	  timestamp=$(date +%Y-%m-%dT%T --date '-30 min')
-      	  git log --since="$timestamp" --name-only --pretty=format: | sort -u | grep integration-tests/
-      	  updates=$?
-      	  if [ $updates -ne 0 ]; then
-      	    echo "No changes"
-      	    echo "::set-output name=push_image::false"
-      	  else 
-      	    echo "Changes detected"
-      	    echo "::set-output name=push_image::true"
-      	  fi
-   
-   push:
-     name: Build and push image
-     needs: [changes]
-     if: needs.changes.outputs.push_image == 'true'
-     runs-on: ubuntu-latest
-     steps:
-      - name: Checkout hac-dev
-        uses: actions/checkout@v3
-        with:
-          repository: openshift/hac-dev
-	  path: hac-dev
-	  
-      - name: Build the test runner image
         run: |
-          cd hac-dev/integration-tests
-          podman build -f Dockerfile -t quay.io/hacdev/hac-tests:next
+          cd hac-dev
+          timestamp=$(date +%Y-%m-%dT%T --date '-30 min')
+          git log --since="$timestamp" --name-only --pretty=format: | sort -u | grep integration-tests/
+          updates=$?
+          if [ $updates -ne 0 ]; then
+            echo "No changes"
+            echo "::set-output name=push_image::false"
+          else 
+            echo "Changes detected"
+            echo "::set-output name=push_image::true"
+          fi
+
+  push:
+    name: Build and push image
+    needs: [changes]
+    if: needs.changes.outputs.push_image == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout hac-dev
+      uses: actions/checkout@v3
+      with:
+        repository: openshift/hac-dev
+        path: hac-dev
+    - name: Build the test runner image
+      run: |
+        cd hac-dev/integration-tests
+        podman build -f Dockerfile -t quay.io/hacdev/hac-tests:next
