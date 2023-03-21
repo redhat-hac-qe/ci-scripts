@@ -18,8 +18,7 @@ jobs:
           path: hac-dev
       - name: Check the changes to tests since last run
         run: |
-          ls 
-          which git
+          set +e
           cd hac-dev
           timestamp=$(date +%Y-%m-%dT%T --date '-30 min')
           git log --since="$timestamp" --name-only --pretty=format: | sort -u | grep integration-tests/
