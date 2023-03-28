@@ -21,10 +21,16 @@ jobs:
         run: |
           set +e
           cd hac-dev
-          git log -n 4
-          git diff --name-only "@{30 minutes ago}" | grep integration-tests
-          updates=$?
-          if [ $updates -ne 0 ]; then
+          builddate=$(podman inspect quay.io/hacdev/hac-tests:next --format "{{.Created}}" | sed -r 's/\sUTC//')
+          changedate=$(TZ=UTC git log --date=iso-local --format=%cd -n 1 -- integration-tests/)
+          
+          echo "last image build date: $builddate"
+          echo "last change date: $changedate"
+          
+          buildstamp=$(date -d "$builddate" +%s)
+          changestamp=$(date -d "$changedate" +%s)
+          
+          if [ $changestamp -ge $buildstamp ]; then
             echo "No changes"
             echo "push_image=false" >> $GITHUB_OUTPUT
           else 
