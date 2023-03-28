@@ -1,8 +1,9 @@
 name: Cypress runner image upload
 
 on:
-  schedule:
-    - cron: "*/30 * * * *"
+  workflow_dispatch:
+# schedule:
+#  - cron: "*/30 * * * *"
     
 jobs:
   changes:
@@ -20,6 +21,7 @@ jobs:
         run: |
           set +e
           cd hac-dev
+          git log -n 4
           git diff --name-only "@{30 minutes ago}" | grep integration-tests
           updates=$?
           if [ $updates -ne 0 ]; then
@@ -29,10 +31,6 @@ jobs:
             echo "Changes detected"
             echo "push_image=true" >> $GITHUB_OUTPUT
           fi
-          cd integration-tests
-          git show -s --format=%ci
-          cd ../src
-          git show -s --format=%ci
       - name: Build and push image
         if: steps.changes.outputs.push_image == 'true'
         env:
