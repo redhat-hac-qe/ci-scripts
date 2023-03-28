@@ -7,7 +7,7 @@ on:
     
 jobs:
   changes:
-    name: Check for changes from last run
+    name: Cypress runner image update
     runs-on: ubuntu-latest
     steps:
       - name: Checkout hac-dev
@@ -19,8 +19,9 @@ jobs:
       - name: Check the changes to tests since last run
         id: changes
         run: |
-          set +e
           cd hac-dev
+          podman pull quay.io/hacdev/hac-tests:next
+          
           builddate=$(podman inspect quay.io/hacdev/hac-tests:next --format "{{.Created}}" | sed -r 's/\sUTC//')
           changedate=$(TZ=UTC git log --date=iso-local --format=%cd -n 1 -- integration-tests/)
           
@@ -30,7 +31,7 @@ jobs:
           buildstamp=$(date -d "$builddate" +%s)
           changestamp=$(date -d "$changedate" +%s)
           
-          if [ $changestamp -ge $buildstamp ]; then
+          if [ $changestamp -lt $buildstamp ]; then
             echo "No changes"
             echo "push_image=false" >> $GITHUB_OUTPUT
           else 
