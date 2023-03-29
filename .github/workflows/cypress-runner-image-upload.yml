@@ -23,7 +23,7 @@ jobs:
           podman pull quay.io/hacdev/hac-tests:next
           
           builddate=$(podman inspect quay.io/hacdev/hac-tests:next --format "{{.Created}}" | sed -r 's/\sUTC//')
-          changedate=$(TZ=UTC git log --date=iso-local --format=%cd -n 1 -- integration-tests/)
+          changedate=$(TZ=UTC git log --date=iso-local --format=%cd -n 1 --first-parent -- integration-tests/)
           
           echo "last image build date: $builddate"
           echo "last change date: $changedate"
