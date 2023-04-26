@@ -43,8 +43,18 @@ jobs:
         env:
           USERNAME: ${{ secrets.QUAY_USER }}
           TOKEN: ${{ secrets.QUAY_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          CHANNEL_ID: "C04U7TA1BT8" # forum-rhtap-test-execution-alerts
+          ACTION_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         run: |
           cd hac-dev/integration-tests
           podman build -f Dockerfile -t quay.io/hacdev/hac-tests:next
           podman login -u="$USERNAME" -p="$TOKEN" quay.io
           podman push quay.io/hacdev/hac-tests:next
+
+          # send a comment to Slack about the latest digest
+          digest=$(curl 'https://quay.io/api/v1/repository/hacdev/hac-tests/tag/?limit=1000&page=1&onlyActiveTags=true' | jq '.tags[] | select(.name=="next") | .manifest_digest')
+          digest=${digest//\"/} # remove quotes
+          digest=${digest:7:12} # shorten to 12 chars to be same as manifest short sha on a web
+
+          curl -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" -d "text=:incoming_envelope: Job *Cypress runner image upload* pushed new *hacdev/hac-tests:next* image with digest *${digest}*. <${ACTION_URL}|View logs> | <https://quay.io/repository/hacdev/hac-tests?tab=tags|Visit quay>" -d "channel=${CHANNEL_ID}" -X POST https://slack.com/api/chat.postMessage
