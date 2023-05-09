@@ -1,0 +1,53 @@
+name: Quay cleanup
+
+on: 
+  schedule:
+   - cron: "0 0 * * 0"
+  workflow_dispatch:
+    
+jobs:
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TOKEN: ${{ secrets.QUAY_HAC_DEV_APP_TOKEN }}
+      NAMESPACE: "hacdev"
+      QUAY_API_URL: "https://quay.io/api/v1"
+      FILTER: "-tenant"
+    steps:
+      - name: Delete Quay repository created by tests
+        run: |
+          # Get list of all repositories and filter by name
+          all_repos=""
+          next_page=""
+          while true; do
+            response=$(curl -s -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" "$QUAY_API_URL/repository?namespace=$NAMESPACE&public=true&next_page=$next_page")
+            repo_names=$(echo $response | jq -r '.repositories[].name' | grep -- $FILTER || true)
+            all_repos+="$repo_names "
+            next_page=$(echo $response | jq -r '.next_page')
+            if [ $next_page == null ]; then
+              break
+            fi
+          done
+          today_date=$(date +'%-m/%-d/%Y')
+          yesterday_date=$(date -d "1 day ago" +'%-m/%-d/%Y')
+          for repo in $all_repos; do
+            # get usage logs and delete if no activity for last one day.
+            aggregatelogs=$(curl -s -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" "$QUAY_API_URL/repository/$NAMESPACE/$repo/aggregatelogs?starttime=$yesterday_date&endtime=$today_date")
+            if [[ $(echo $aggregatelogs | jq '.aggregated | length') -eq 0 ]]; then
+              echo "Deleting repository: $repo"
+              curl -s -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -XDELETE "$QUAY_API_URL/repository/$NAMESPACE/$repo"
+            fi
+          done
+      - name: Delete Quay robot acc created by tests
+        if: always()
+        run: |
+          # Get list of robot accounts created more than 1 day ago and filter by name
+          one_day_ago=$(date -d "1 day ago" +%s)
+          robot_accs=$(curl -s -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" "$QUAY_API_URL/organization/$NAMESPACE/robots?token=false")
+          robot_names=$(echo $robot_accs | jq -r '.robots[] | select(.created | strptime("%a, %d %b %Y %H:%M:%S %z") | mktime < '$one_day_ago') | .name' | grep -- $FILTER | sed 's/^'"$NAMESPACE"'+//g' || true)
+          for robot_name in $robot_names; do
+            echo "Deleting robot account: $robot_name"
+            curl -s -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -XDELETE "$QUAY_API_URL/organization/$NAMESPACE/robots/$robot_name"
+          done
