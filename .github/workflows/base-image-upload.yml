@@ -26,10 +26,10 @@ jobs:
           podman build -f Dockerfile -t quay.io/hacdev/hac-tests:base
           podman login -u="$USERNAME" -p="$TOKEN" quay.io
           podman push quay.io/hacdev/hac-tests:base
-      # - name: Update runner image
-      #   run: |
-      #     cd hac-dev/integration-tests
-      #     podman build -f Dockerfile -t quay.io/hacdev/hac-tests:next
-      #     podman login -u="$USERNAME" -p="$TOKEN" quay.io
-      #     podman push quay.io/hacdev/hac-tests:next
+      - name: Update runner image
+        run: |
+          cd hac-dev/integration-tests
+          podman build -f Dockerfile -t quay.io/hacdev/hac-tests:next
+          podman login -u="$USERNAME" -p="$TOKEN" quay.io
+          podman push quay.io/hacdev/hac-tests:next
       
