@@ -1,0 +1,80 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reportportal-upload
+  namespace: hac-dev-qe
+spec:
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: reportportal-upload
+            image: google/cloud-sdk:latest
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            env:
+            - name: REPORTPORTAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: token
+                  name: reportportal-token
+            - name: PY_XML_UPDATE_SCRIPT
+              value: https://raw.githubusercontent.com/redhat-hac-qe/ci-scripts/main/rp_xml_update_and_zip.py
+            - name: HAC_DEV_REPORT_IMPORT_URL
+              value: https://reportportal-appstudio-qe.apps.ocp-c1.prod.psi.redhat.com/api/v1/hac-dev/launch/import
+            - name: LATEST_BUILD_FILE_URL
+              value: https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/origin-ci-test/logs/periodic-ci-openshift-hac-dev-main-periodic-tests/latest-build.txt
+            - name: OPENSHIFTCI_JOB_GS
+              value: gs://origin-ci-test/logs/periodic-ci-openshift-hac-dev-main-periodic-tests
+            - name: OPENSHIFTCI_JOB_ARTIFACTS_PATH
+              value: artifacts/periodic-tests/openshift-hac-dev-e2e/artifacts/*.xml
+
+            command:
+              - "/bin/sh"
+              - "-c"
+              - |
+                failed=false
+                latest_build_ID=$(curl $LATEST_BUILD_FILE_URL)
+                echo "latest build id : $latest_build_ID"
+
+                cd /tmp
+                mkdir ./artifacts
+
+                export CLOUDSDK_CONFIG=/tmp
+                gsutil -m -o "GSUtil:state_dir=/tmp" cp -r "$OPENSHIFTCI_JOB_GS/$latest_build_ID/$OPENSHIFTCI_JOB_ARTIFACTS_PATH" artifacts
+                
+                curl -o rp_xml_update_and_zip.py $PY_XML_UPDATE_SCRIPT
+
+                zip_file=$(python3 rp_xml_update_and_zip.py /tmp/artifacts)
+                echo "$zip_file"
+
+                response=$(curl -k -X POST \
+                  -H "Authorization: Bearer ${REPORTPORTAL_TOKEN}" \
+                  -H "Content-Type: multipart/form-data" \
+                  -F "file=@${zip_file}" \
+                  $HAC_DEV_REPORT_IMPORT_URL)
+                
+                if echo "$response" | grep -q "successfully imported"; then
+                    echo "Success: $response"
+                else
+                    echo "Error: $response"
+                    failed=true
+                fi
+
+                if [ "$failed" = true ]; then
+                  echo "Job failed"
+                  exit 1
+                fi
