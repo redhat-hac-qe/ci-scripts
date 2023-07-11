@@ -31,12 +31,19 @@ spec:
                 secretKeyRef:
                   key: token
                   name: reportportal-token
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: token
+                  name: slack-bot-token
+            - name: SLACK_CHANNEL_ID
+              value: "C04U7TA1BT8" # forum-rhtap-test-execution-alerts
             - name: PY_XML_UPDATE_SCRIPT
               value: https://raw.githubusercontent.com/redhat-hac-qe/ci-scripts/main/rp_xml_update_and_zip.py
             - name: HAC_DEV_REPORT_IMPORT_URL
               value: https://reportportal-appstudio-qe.apps.ocp-c1.prod.psi.redhat.com/api/v1/hac-dev/launch/import
-            - name: LATEST_BUILD_FILE_URL
-              value: https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/origin-ci-test/logs/periodic-ci-openshift-hac-dev-main-periodic-tests/latest-build.txt
+            - name: JOB_URL
+              value: https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/origin-ci-test/logs/periodic-ci-openshift-hac-dev-main-periodic-tests
             - name: OPENSHIFTCI_JOB_GS
               value: gs://origin-ci-test/logs/periodic-ci-openshift-hac-dev-main-periodic-tests
             - name: OPENSHIFTCI_JOB_ARTIFACTS_PATH
@@ -47,8 +54,17 @@ spec:
               - "-c"
               - |
                 failed=false
-                latest_build_ID=$(curl $LATEST_BUILD_FILE_URL)
+                latest_build_ID=$(curl "$JOB_URL/latest-build.txt")
                 echo "latest build id : $latest_build_ID"
+
+                #Check if the timestamp of the last build is not older than 12 hours.
+                timestamp=$(curl -s "$JOB_URL/$latest_build_ID/started.json" | grep -oP '"timestamp":\K\d+')
+                twelve_hours_ago=$(date -u -d '12 hours ago' +%s)
+
+                if [ "$timestamp" -le "$twelve_hours_ago" ]; then
+                  echo "Skipping : Latest build is older than 12 hours"
+                  exit 0
+                fi
 
                 cd /tmp
                 mkdir ./artifacts
@@ -75,6 +91,7 @@ spec:
                 fi
 
                 if [ "$failed" = true ]; then
-                  echo "Job failed"
+                  echo "Upload failed"
+                  curl -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" -d "text=:red-siren: Periodic Job : Failed to upload report on report portal" -d "channel=${SLACK_CHANNEL_ID}" -X POST https://slack.com/api/chat.postMessage
                   exit 1
                 fi
