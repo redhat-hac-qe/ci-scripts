@@ -9,7 +9,9 @@ def update_xml_file(xml_file):
     root = tree.getroot()
 
     testsuites = root.findall('testsuite')
-    if 'file' in testsuites[0].attrib:
+    if 'file' in testsuites[0].attrib and testsuites[0].attrib['failures'] != "0":
+        return
+    elif 'file' in testsuites[0].attrib:
         root.remove(testsuites[0])
 
     parent_testsuite = testsuites[1]
