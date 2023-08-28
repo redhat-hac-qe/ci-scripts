@@ -77,17 +77,21 @@ spec:
                 zip_file=$(python3 rp_xml_update_and_zip.py /tmp/artifacts)
                 echo "$zip_file"
 
-                response=$(curl -k -X POST \
-                  -H "Authorization: Bearer ${REPORTPORTAL_TOKEN}" \
-                  -H "Content-Type: multipart/form-data" \
-                  -F "file=@${zip_file}" \
-                  $HAC_DEV_REPORT_IMPORT_URL)
-                
-                if echo "$response" | grep -q "successfully imported"; then
+                if [ -f "$zip_file" ]; then
+                  response=$(curl -k -X POST \
+                    -H "Authorization: Bearer ${REPORTPORTAL_TOKEN}" \
+                    -H "Content-Type: multipart/form-data" \
+                    -F "file=@${zip_file}" \
+                    $HAC_DEV_REPORT_IMPORT_URL)
+
+                  if echo "$response" | grep -q "successfully imported"; then
                     echo "Success: $response"
+                  else
+                      echo "Error: $response"
+                      failed=true
+                  fi
                 else
-                    echo "Error: $response"
-                    failed=true
+                  echo "Zip file not found."
                 fi
 
                 if [ "$failed" = true ]; then
