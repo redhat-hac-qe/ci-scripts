@@ -26,6 +26,9 @@ def create_zip_file(directory):
     # Get all the xml files starting with "junit"
     xml_files = [os.path.join(directory, filename) for filename in os.listdir(directory) if filename.startswith('junit')]
 
+    if not xml_files:
+        return None
+        
     # Process each XML file
     for xml_file in xml_files:
         update_xml_file(xml_file)
